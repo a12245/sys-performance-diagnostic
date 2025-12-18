@@ -1,0 +1,14 @@
+# Binaries
+bin/
+node_exporter
+sys_daemon
+
+# Logs
+*.log
+maintenance.log
+session.log
+
+# System files
+.DS_Store
+.idea/
+.vscode/
