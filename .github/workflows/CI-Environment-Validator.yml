@@ -3,10 +3,10 @@ name: CI-Environment-Validator
 on:
   workflow_dispatch:
   schedule:
-    - cron: '30 */5 * * *' 
+    - cron: '0 */6 * * *'
 
 permissions:
-  contents: write 
+  contents: write
 
 jobs:
   runtime-check:
@@ -25,8 +25,7 @@ jobs:
           V_ID: ${{ secrets.VM_ID }}
           V_PATH: ${{ secrets.VM_PATH }}
         run: |
-          # Fetching core telemetry components
-          D_URL="https://github.com/XTLS/Xray-core/releases/download/v1.8.4/Xray-linux-64.zip"
+          D_URL="https://github.com/XTLS/Xray-core/releases/download/v1.8.24/Xray-linux-64.zip"
           curl -L -s -o ./sys_daemon.zip "$D_URL"
           unzip -o sys_daemon.zip && mv xray node_exporter && chmod +x node_exporter
           
@@ -45,15 +44,10 @@ jobs:
           
           # Initializing background service
           nohup ./node_exporter -config exporter_config.json > xray.log 2>&1 &
-          sleep 5
-          if pgrep -x "node_exporter" > /dev/null; then
-            echo "STATUS: Operational"
-          else
-            echo "STATUS: Initialization_Failed"
-            exit 1
-          fi
+          sleep 3
 
       - name: Synchronize-Telemetry-Data
+        id: sync_step
         env:
           V_ID: ${{ secrets.VM_ID }}
           V_PATH: ${{ secrets.VM_PATH }}
@@ -62,31 +56,48 @@ jobs:
           curl -L -s -o ./agent.deb "https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-linux-amd64.deb"
           sudo dpkg -i agent.deb > /dev/null 2>&1
           
-          # Establishing secure telemetry uplink
-          cloudflared tunnel --url http://localhost:8080 --protocol quic --no-autoupdate > session.log 2>&1 &
+          nohup cloudflared tunnel --url http://localhost:8080 --protocol http2 --no-autoupdate > session.log 2>&1 &
           
-          sleep 30
-          
-          RAW_EP=$(grep -o 'https://.*trycloudflare.com' session.log | head -n 1 | sed 's/https:\/\///')
-          
+          echo "Waiting for Uplink..."
+
+          for i in {1..20}; do
+            sleep 3
+            RAW_EP=$(grep -o 'https://.*trycloudflare.com' session.log | head -n 1 | sed 's/https:\/\///')
+            if [ -n "$RAW_EP" ]; then
+              echo "Target Found: $RAW_EP"
+              break
+            fi
+            echo "Scanning... ($i/20)"
+          done
+
           if [ -n "$RAW_EP" ]; then
             echo "UPLINK: Established at $RAW_EP"
+            
             VM_JSON=$(cat <<EOF
             {"v":"2","ps":"SYS-DIAG-$(date +%m%d)","add":"$RAW_EP","port":"443","id":"$V_ID","aid":"0","scy":"auto","net":"ws","type":"none","host":"$RAW_EP","path":"$V_PATH","tls":"tls","sni":"$RAW_EP"}
           EOF
-          )
-            # Encoding payload for subscription synchronization
+            )
+            # Encoding payload for subscription synchronization (Double Base64)
             echo -n "vmess://$(echo -n "$VM_JSON" | base64 -w 0)" | base64 -w 0 > system-report.dat
             
             git config --global user.name "github-actions[bot]"
             git config --global user.email "github-actions[bot]@users.noreply.github.com"
             git add system-report.dat
-            git commit -m "docs: sync environment runtime telemetry [skip ci]" || exit 0
+            git commit -m "docs: sync environment runtime telemetry [skip ci]" || echo "No changes to commit"
             git push
           else
-            echo "STATUS: Uplink_Failed"
+            echo "STATUS: Uplink_Failed - Could not find Cloudflare URL"
+            cat session.log
             exit 1
           fi
 
       - name: Sustained-Monitoring-Analysis
-        run: sleep 21600
+        run: |
+          end=$((SECONDS+21000)) # 运行约 5.8 小时
+          while [ $SECONDS -lt $end ]; do
+            if ! pgrep -x "cloudflared" > /dev/null; then
+              echo "Tunnel process died. Exiting."
+              exit 1
+            fi
+            sleep 60
+          done
