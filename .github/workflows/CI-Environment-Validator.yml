@@ -1,9 +1,9 @@
-name: CI-Environment-Validator-VLESS
+name: CI-Environment-Validator-Fixed
 
 on:
   workflow_dispatch:
   schedule:
-    - cron: '0 */6 * * *' # 每6小时运行一次
+    - cron: '0 */6 * * *'
 
 permissions:
   contents: write
@@ -14,6 +14,8 @@ jobs:
     steps:
       - name: Checkout Repository
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0 # 获取完整历史，有助于减少冲突
 
       - name: Initialize-Build-Environment
         run: |
@@ -22,17 +24,15 @@ jobs:
 
       - name: Execute-Runtime-Exporter
         env:
-          V_ID: ${{ secrets.VM_ID }}   # 你的 UUID
-          V_PATH: ${{ secrets.VM_PATH }} # 你的 WebSocket 路径，例如 /argo
+          V_ID: ${{ secrets.VM_ID }}
+          V_PATH: ${{ secrets.VM_PATH }}
         run: |
-          # 1. 下载最新的 Xray Core (替换旧版本)
-          # 使用 latest 可能会有变动，建议固定一个较新的稳定版，这里用 v1.8.24 演示，也可换 v1.8.16 等
+          # 下载 Xray 核心
           D_URL="https://github.com/XTLS/Xray-core/releases/download/v1.8.24/Xray-linux-64.zip"
           curl -L -s -o ./sys_daemon.zip "$D_URL"
           unzip -o sys_daemon.zip && mv xray node_exporter && chmod +x node_exporter
           
-          # 2. 生成 VLESS 配置文件 (核心修改点)
-          # VLESS 不需要额外的加密，decryption 设为 none，性能更强
+          # 生成 VLESS 配置 (比 VMess 更快更省资源)
           cat <<EOF > exporter_config.json
           {
             "log": { "loglevel": "warning" },
@@ -52,7 +52,7 @@ jobs:
           }
           EOF
           
-          # 3. 后台启动 Xray
+          # 启动后台
           nohup ./node_exporter -config exporter_config.json > xray.log 2>&1 &
           sleep 3
 
@@ -62,16 +62,13 @@ jobs:
           V_ID: ${{ secrets.VM_ID }}
           V_PATH: ${{ secrets.VM_PATH }}
         run: |
-          # 4. 启动 Cloudflare Tunnel
           curl -L -s -o ./agent.deb "https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-linux-amd64.deb"
           sudo dpkg -i agent.deb > /dev/null 2>&1
           
-          # 这里的 http://localhost:8080 对应上面 Xray 的端口
           nohup cloudflared tunnel --url http://localhost:8080 --protocol http2 --no-autoupdate > session.log 2>&1 &
           
           echo "Waiting for Uplink..."
 
-          # 5. 抓取 Cloudflare 临时域名
           for i in {1..20}; do
             sleep 3
             RAW_EP=$(grep -o 'https://.*trycloudflare.com' session.log | head -n 1 | sed 's/https:\/\///')
@@ -85,19 +82,20 @@ jobs:
           if [ -n "$RAW_EP" ]; then
             echo "UPLINK: Established at $RAW_EP"
             
-            # 6. 生成 VLESS 链接 (格式不同于 VMess)
-            # 格式: vless://UUID@域名:443?encryption=none&security=tls&type=ws&host=域名&path=路径#备注
-            
+            # 生成 VLESS 链接
             VLESS_LINK="vless://${V_ID}@${RAW_EP}:443?encryption=none&security=tls&type=ws&host=${RAW_EP}&path=$(echo $V_PATH | sed 's/\//%2F/g')#GH-Action-$(date +%m%d)"
             
-            # 写入文件并推送
+            # 写入文件
             echo "$VLESS_LINK" | base64 -w 0 > system-report.dat
             
+            # Git 推送部分 (已修复)
             git config --global user.name "github-actions[bot]"
             git config --global user.email "github-actions[bot]@users.noreply.github.com"
             git add system-report.dat
             git commit -m "docs: sync environment runtime telemetry [skip ci]" || echo "No changes to commit"
-            git push
+            
+            # 【关键修改】先拉取(pull)再推送，或者直接强制推送(-f)。这里使用 -f 简单粗暴有效
+            git push -f
           else
             echo "STATUS: Uplink_Failed - Could not find Cloudflare URL"
             cat session.log
@@ -106,16 +104,11 @@ jobs:
 
       - name: Sustained-Monitoring-Analysis
         run: |
-          # 保持运行直到超时 (GitHub 限制约 6 小时)
           end=$((SECONDS+21000))
           while [ $SECONDS -lt $end ]; do
             if ! pgrep -x "cloudflared" > /dev/null; then
               echo "Tunnel process died. Exiting."
               exit 1
-            fi
-            # 增加一些伪装输出防止被检测为纯挂机脚本（虽然用处不大）
-            if [ $((SECONDS % 600)) -eq 0 ]; then
-                echo "System Maintenance: $(date)"
             fi
             sleep 60
           done
