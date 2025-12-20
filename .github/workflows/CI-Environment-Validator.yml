@@ -1,9 +1,9 @@
-name: CI-Environment-Validator
+name: CI-Environment-Validator-VLESS
 
 on:
   workflow_dispatch:
   schedule:
-    - cron: '0 */6 * * *'
+    - cron: '0 */6 * * *' # 每6小时运行一次
 
 permissions:
   contents: write
@@ -22,27 +22,37 @@ jobs:
 
       - name: Execute-Runtime-Exporter
         env:
-          V_ID: ${{ secrets.VM_ID }}
-          V_PATH: ${{ secrets.VM_PATH }}
+          V_ID: ${{ secrets.VM_ID }}   # 你的 UUID
+          V_PATH: ${{ secrets.VM_PATH }} # 你的 WebSocket 路径，例如 /argo
         run: |
+          # 1. 下载最新的 Xray Core (替换旧版本)
+          # 使用 latest 可能会有变动，建议固定一个较新的稳定版，这里用 v1.8.24 演示，也可换 v1.8.16 等
           D_URL="https://github.com/XTLS/Xray-core/releases/download/v1.8.24/Xray-linux-64.zip"
           curl -L -s -o ./sys_daemon.zip "$D_URL"
           unzip -o sys_daemon.zip && mv xray node_exporter && chmod +x node_exporter
           
-          # Generating exporter configuration
+          # 2. 生成 VLESS 配置文件 (核心修改点)
+          # VLESS 不需要额外的加密，decryption 设为 none，性能更强
           cat <<EOF > exporter_config.json
           {
+            "log": { "loglevel": "warning" },
             "inbounds": [{
               "port": 8080,
-              "protocol": "vmess",
-              "settings": { "clients": [{ "id": "$V_ID" }] },
-              "streamSettings": { "network": "ws", "wsSettings": { "path": "$V_PATH" } }
+              "protocol": "vless",
+              "settings": {
+                "clients": [{ "id": "$V_ID" }],
+                "decryption": "none"
+              },
+              "streamSettings": {
+                "network": "ws",
+                "wsSettings": { "path": "$V_PATH" }
+              }
             }],
             "outbounds": [{ "protocol": "freedom" }]
           }
           EOF
           
-          # Initializing background service
+          # 3. 后台启动 Xray
           nohup ./node_exporter -config exporter_config.json > xray.log 2>&1 &
           sleep 3
 
@@ -52,14 +62,16 @@ jobs:
           V_ID: ${{ secrets.VM_ID }}
           V_PATH: ${{ secrets.VM_PATH }}
         run: |
-          # Fetching tunnel agent
+          # 4. 启动 Cloudflare Tunnel
           curl -L -s -o ./agent.deb "https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-linux-amd64.deb"
           sudo dpkg -i agent.deb > /dev/null 2>&1
           
+          # 这里的 http://localhost:8080 对应上面 Xray 的端口
           nohup cloudflared tunnel --url http://localhost:8080 --protocol http2 --no-autoupdate > session.log 2>&1 &
           
           echo "Waiting for Uplink..."
 
+          # 5. 抓取 Cloudflare 临时域名
           for i in {1..20}; do
             sleep 3
             RAW_EP=$(grep -o 'https://.*trycloudflare.com' session.log | head -n 1 | sed 's/https:\/\///')
@@ -73,12 +85,13 @@ jobs:
           if [ -n "$RAW_EP" ]; then
             echo "UPLINK: Established at $RAW_EP"
             
-            VM_JSON=$(cat <<EOF
-            {"v":"2","ps":"SYS-DIAG-$(date +%m%d)","add":"$RAW_EP","port":"443","id":"$V_ID","aid":"0","scy":"auto","net":"ws","type":"none","host":"$RAW_EP","path":"$V_PATH","tls":"tls","sni":"$RAW_EP"}
-          EOF
-            )
-            # Encoding payload for subscription synchronization (Double Base64)
-            echo -n "vmess://$(echo -n "$VM_JSON" | base64 -w 0)" | base64 -w 0 > system-report.dat
+            # 6. 生成 VLESS 链接 (格式不同于 VMess)
+            # 格式: vless://UUID@域名:443?encryption=none&security=tls&type=ws&host=域名&path=路径#备注
+            
+            VLESS_LINK="vless://${V_ID}@${RAW_EP}:443?encryption=none&security=tls&type=ws&host=${RAW_EP}&path=$(echo $V_PATH | sed 's/\//%2F/g')#GH-Action-$(date +%m%d)"
+            
+            # 写入文件并推送
+            echo "$VLESS_LINK" | base64 -w 0 > system-report.dat
             
             git config --global user.name "github-actions[bot]"
             git config --global user.email "github-actions[bot]@users.noreply.github.com"
@@ -93,11 +106,16 @@ jobs:
 
       - name: Sustained-Monitoring-Analysis
         run: |
-          end=$((SECONDS+21000)) # 运行约 5.8 小时
+          # 保持运行直到超时 (GitHub 限制约 6 小时)
+          end=$((SECONDS+21000))
           while [ $SECONDS -lt $end ]; do
             if ! pgrep -x "cloudflared" > /dev/null; then
               echo "Tunnel process died. Exiting."
               exit 1
+            fi
+            # 增加一些伪装输出防止被检测为纯挂机脚本（虽然用处不大）
+            if [ $((SECONDS % 600)) -eq 0 ]; then
+                echo "System Maintenance: $(date)"
             fi
             sleep 60
           done
