@@ -1,4 +1,4 @@
-name: CI-Environment-Validator-Fixed
+name: CI-Performance-Beast
 
 on:
   workflow_dispatch:
@@ -9,106 +9,127 @@ permissions:
   contents: write
 
 jobs:
-  runtime-check:
+  performance-runner:
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout Repository
+      - name: Checkout
         uses: actions/checkout@v4
         with:
-          fetch-depth: 0 # 获取完整历史，有助于减少冲突
+          fetch-depth: 1
 
-      - name: Initialize-Build-Environment
+      - name: Optimize-Kernel-Network
         run: |
-          sudo apt-get update -y > /dev/null 2>&1
-          sudo apt-get install -y curl wget unzip coreutils > /dev/null 2>&1
+          # --- 激进系统优化 (Linux Kernel Tuning) ---
+          # 开启 TCP Fast Open
+          sudo sysctl -w net.ipv4.tcp_fastopen=3
+          # 增加最大连接数
+          sudo sysctl -w net.core.somaxconn=65535
+          # 调整 TCP 缓冲区限制 (榨干带宽)
+          sudo sysctl -w net.ipv4.tcp_window_scaling=1
+          sudo sysctl -w net.core.rmem_max=8388608
+          sudo sysctl -w net.core.wmem_max=8388608
+          # 开启 BBR 拥塞控制 (虽然 Action 核心通常受限，但尝试开启)
+          sudo sysctl -w net.core.default_qdisc=fq
+          sudo sysctl -w net.ipv4.tcp_congestion_control=bbr || echo "BBR fallback"
+          # 允许更多打开文件句柄
+          ulimit -n 65535
 
-      - name: Execute-Runtime-Exporter
+      - name: Deploy-Singbox-Core
         env:
           V_ID: ${{ secrets.VM_ID }}
-          V_PATH: ${{ secrets.VM_PATH }}
         run: |
-          # 下载 Xray 核心
-          D_URL="https://github.com/XTLS/Xray-core/releases/download/v1.8.24/Xray-linux-64.zip"
-          curl -L -s -o ./sys_daemon.zip "$D_URL"
-          unzip -o sys_daemon.zip && mv xray node_exporter && chmod +x node_exporter
-          
-          # 生成 VLESS 配置 (比 VMess 更快更省资源)
-          cat <<EOF > exporter_config.json
+          # 下载 Sing-box
+          curl -L -s -o sing-box.tar.gz "https://github.com/SagerNet/sing-box/releases/download/v1.8.11/sing-box-1.8.11-linux-amd64.tar.gz"
+          tar -xzf sing-box.tar.gz && mv sing-box-*/sing-box . && chmod +x sing-box
+
+          # 生成 "裸奔" 配置
+          # 没有任何 Log，没有任何 Sniff，路径设为根目录 /
+          cat <<EOF > config.json
           {
-            "log": { "loglevel": "warning" },
-            "inbounds": [{
-              "port": 8080,
-              "protocol": "vless",
-              "settings": {
-                "clients": [{ "id": "$V_ID" }],
-                "decryption": "none"
-              },
-              "streamSettings": {
-                "network": "ws",
-                "wsSettings": { "path": "$V_PATH" }
+            "log": { "disabled": true },
+            "dns": { "servers": [] },
+            "inbounds": [
+              {
+                "type": "vless",
+                "tag": "in-0",
+                "listen": "127.0.0.1",
+                "listen_port": 8080,
+                "users": [{ "uuid": "$V_ID", "flow": "" }],
+                "transport": {
+                  "type": "ws",
+                  "path": "/",
+                  "early_data_header_name": "Sec-WebSocket-Protocol"
+                }
               }
-            }],
-            "outbounds": [{ "protocol": "freedom" }]
+            ],
+            "outbounds": [{ "type": "direct", "tag": "out-0" }]
           }
           EOF
-          
-          # 启动后台
-          nohup ./node_exporter -config exporter_config.json > xray.log 2>&1 &
-          sleep 3
 
-      - name: Synchronize-Telemetry-Data
+          # 启动
+          nohup ./sing-box run -c config.json > /dev/null 2>&1 &
+          sleep 2
+
+      - name: Establish-Tunnel-And-Sync
         id: sync_step
         env:
           V_ID: ${{ secrets.VM_ID }}
-          V_PATH: ${{ secrets.VM_PATH }}
         run: |
-          curl -L -s -o ./agent.deb "https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-linux-amd64.deb"
-          sudo dpkg -i agent.deb > /dev/null 2>&1
+          # 下载 Cloudflared
+          curl -L -s -o cloudflared "https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-linux-amd64"
+          chmod +x cloudflared
           
-          nohup cloudflared tunnel --url http://localhost:8080 --protocol http2 --no-autoupdate > session.log 2>&1 &
+          # 启动 Tunnel - 使用 http2 协议 (比 quic 更省 CPU)
+          nohup ./cloudflared tunnel --url http://localhost:8080 --protocol http2 --no-autoupdate > session.log 2>&1 &
           
           echo "Waiting for Uplink..."
-
-          for i in {1..20}; do
-            sleep 3
+          
+          # 快速扫描
+          for i in {1..30}; do
+            sleep 2
             RAW_EP=$(grep -o 'https://.*trycloudflare.com' session.log | head -n 1 | sed 's/https:\/\///')
             if [ -n "$RAW_EP" ]; then
-              echo "Target Found: $RAW_EP"
               break
             fi
-            echo "Scanning... ($i/20)"
           done
 
           if [ -n "$RAW_EP" ]; then
-            echo "UPLINK: Established at $RAW_EP"
+            # --- 极速链接生成 (No-Fancy-Stuff) ---
             
-            # 生成 VLESS 链接
-            VLESS_LINK="vless://${V_ID}@${RAW_EP}:443?encryption=none&security=tls&type=ws&host=${RAW_EP}&path=$(echo $V_PATH | sed 's/\//%2F/g')#GH-Action-$(date +%m%d)"
+            # 使用大厂域名作为跳板
+            CDN_DOMAINS=("www.visa.com" "www.visa.com.sg" "www.wto.org" "icook.tw" "ip.sb")
+            
+            TOTAL_LINKS=""
+            
+            for DOMAIN in "${CDN_DOMAINS[@]}"; do
+                ALIAS="⚡Turbo-${DOMAIN}"
+                # 关键参数解释：
+                # path=/               -> 最短路径，减少握手包大小
+                # allowInsecure=1      -> 客户端不验证证书，加快握手
+                # mux=1                -> (可选) 如果客户端支持，尝试多路复用
+                # type=ws              -> 必须是 WS，但我们去掉了所有多余的 header
+                
+                LINK="vless://${V_ID}@${DOMAIN}:443?encryption=none&security=tls&type=ws&host=${RAW_EP}&sni=${RAW_EP}&path=%2F&allowInsecure=1#${ALIAS}"
+                TOTAL_LINKS="${TOTAL_LINKS}${LINK}\n"
+            done
             
             # 写入文件
-            echo "$VLESS_LINK" | base64 -w 0 > system-report.dat
+            echo -e "$TOTAL_LINKS" | base64 -w 0 > system-report.dat
             
-            # Git 推送部分 (已修复)
-            git config --global user.name "github-actions[bot]"
-            git config --global user.email "github-actions[bot]@users.noreply.github.com"
+            # 强制推送
+            git config --global user.name "bot"
+            git config --global user.email "bot@bot.com"
             git add system-report.dat
-            git commit -m "docs: sync environment runtime telemetry [skip ci]" || echo "No changes to commit"
-            
-            # 【关键修改】先拉取(pull)再推送，或者直接强制推送(-f)。这里使用 -f 简单粗暴有效
+            git commit -m "update" || echo "skip"
             git push -f
           else
-            echo "STATUS: Uplink_Failed - Could not find Cloudflare URL"
-            cat session.log
             exit 1
           fi
 
-      - name: Sustained-Monitoring-Analysis
+      - name: Keep-Alive
         run: |
-          end=$((SECONDS+21000))
+          # 没有任何多余的检查逻辑，纯循环，省 CPU
+          end=$((SECONDS+21600))
           while [ $SECONDS -lt $end ]; do
-            if ! pgrep -x "cloudflared" > /dev/null; then
-              echo "Tunnel process died. Exiting."
-              exit 1
-            fi
-            sleep 60
+            sleep 120
           done
