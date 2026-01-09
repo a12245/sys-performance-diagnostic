@@ -1,4 +1,4 @@
-name: CI-Performance-Beast
+name: CI-Performance-Beast-WARP
 
 on:
   workflow_dispatch:
@@ -19,20 +19,45 @@ jobs:
 
       - name: Optimize-Kernel-Network
         run: |
-          # --- 激进系统优化 (Linux Kernel Tuning) ---
-          # 开启 TCP Fast Open
+          # --- 激进系统优化 ---
           sudo sysctl -w net.ipv4.tcp_fastopen=3
-          # 增加最大连接数
           sudo sysctl -w net.core.somaxconn=65535
-          # 调整 TCP 缓冲区限制 (榨干带宽)
           sudo sysctl -w net.ipv4.tcp_window_scaling=1
           sudo sysctl -w net.core.rmem_max=8388608
           sudo sysctl -w net.core.wmem_max=8388608
-          # 开启 BBR 拥塞控制 (虽然 Action 核心通常受限，但尝试开启)
           sudo sysctl -w net.core.default_qdisc=fq
           sudo sysctl -w net.ipv4.tcp_congestion_control=bbr || echo "BBR fallback"
-          # 允许更多打开文件句柄
           ulimit -n 65535
+
+      # --- [新增] 安装并启动 Cloudflare WARP ---
+      - name: Install-WARP-Socks5
+        run: |
+          # 1. 添加 Cloudflare GPG Key 和 Repo
+          curl -fsSL https://pkg.cloudflareclient.com/pubkey.gpg | sudo gpg --yes --dearmor --output /usr/share/keyrings/cloudflare-warp-archive-keyring.gpg
+          echo "deb [arch=amd64 signed-by=/usr/share/keyrings/cloudflare-warp-archive-keyring.gpg] https://pkg.cloudflareclient.com/ $(lsb_release -cs) main" | sudo tee /etc/apt/sources.list.d/cloudflare-client.list
+          
+          # 2. 安装 WARP
+          sudo apt-get update && sudo apt-get install cloudflare-warp -y
+          
+          # 3. 注册并配置为 SOCKS5 代理模式 (避免接管整个系统网络导致 SSH/Action 断连)
+          warp-cli --accept-tos registration new
+          warp-cli --accept-tos mode proxy
+          warp-cli --accept-tos proxy port 40000
+          
+          # 4. 连接
+          warp-cli --accept-tos connect
+          
+          # 5. 等待连接成功
+          echo "Waiting for WARP..."
+          sleep 5
+          for i in {1..10}; do
+            STATUS=$(curl -s --socks5 127.0.0.1:40000 https://www.cloudflare.com/cdn-cgi/trace | grep "warp=on")
+            if [ -n "$STATUS" ]; then
+              echo "WARP is ON! 🚀"
+              break
+            fi
+            sleep 2
+          done
 
       - name: Deploy-Singbox-Core
         env:
@@ -42,8 +67,7 @@ jobs:
           curl -L -s -o sing-box.tar.gz "https://github.com/SagerNet/sing-box/releases/download/v1.8.11/sing-box-1.8.11-linux-amd64.tar.gz"
           tar -xzf sing-box.tar.gz && mv sing-box-*/sing-box . && chmod +x sing-box
 
-          # 生成 "裸奔" 配置
-          # 没有任何 Log，没有任何 Sniff，路径设为根目录 /
+          # --- [修改] 配置 Sing-box 走 WARP SOCKS5 出口 ---
           cat <<EOF > config.json
           {
             "log": { "disabled": true },
@@ -62,11 +86,19 @@ jobs:
                 }
               }
             ],
-            "outbounds": [{ "type": "direct", "tag": "out-0" }]
+            "outbounds": [
+              {
+                "type": "socks", 
+                "tag": "warp-out",
+                "server": "127.0.0.1",
+                "server_port": 40000,
+                "version": "5"
+              }
+            ]
           }
           EOF
 
-          # 启动
+          # 启动 Sing-box
           nohup ./sing-box run -c config.json > /dev/null 2>&1 &
           sleep 2
 
@@ -79,12 +111,10 @@ jobs:
           curl -L -s -o cloudflared "https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-linux-amd64"
           chmod +x cloudflared
           
-          # 启动 Tunnel - 使用 http2 协议 (比 quic 更省 CPU)
+          # 启动 Tunnel (HTTP2)
           nohup ./cloudflared tunnel --url http://localhost:8080 --protocol http2 --no-autoupdate > session.log 2>&1 &
           
           echo "Waiting for Uplink..."
-          
-          # 快速扫描
           for i in {1..30}; do
             sleep 2
             RAW_EP=$(grep -o 'https://.*trycloudflare.com' session.log | head -n 1 | sed 's/https:\/\///')
@@ -94,37 +124,29 @@ jobs:
           done
 
           if [ -n "$RAW_EP" ]; then
-            # --- 极速链接生成 (No-Fancy-Stuff) ---
-            
             # 使用大厂域名作为跳板
             CDN_DOMAINS=("www.visa.com" "www.visa.com.sg" "www.wto.org" "icook.tw" "ip.sb")
             
             TOTAL_LINKS=""
-            
-            # --- [新增] 初始化 Clash 配置变量 ---
             CLASH_PROXIES=""
             CLASH_GROUPS=""
             
             for DOMAIN in "${CDN_DOMAINS[@]}"; do
-                ALIAS="⚡Turbo-${DOMAIN}"
+                ALIAS="⚡WARP-${DOMAIN}"
                 
-                # 1. 生成原本的 VLESS 链接
+                # VLESS Link
                 LINK="vless://${V_ID}@${DOMAIN}:443?encryption=none&security=tls&type=ws&host=${RAW_EP}&sni=${RAW_EP}&path=%2F&allowInsecure=1#${ALIAS}"
                 TOTAL_LINKS="${TOTAL_LINKS}${LINK}\n"
                 
-                # 2. [新增] 生成 Clash Meta 节点块 (YAML格式)
-                # 注意缩进必须严格
+                # Clash Meta Block
                 CLASH_PROXIES="${CLASH_PROXIES}  - name: ${ALIAS}\n    type: vless\n    server: ${DOMAIN}\n    port: 443\n    uuid: ${V_ID}\n    udp: true\n    tls: true\n    network: ws\n    servername: ${RAW_EP}\n    skip-cert-verify: true\n    client-fingerprint: chrome\n    ws-opts:\n      path: \"/\"\n      headers:\n        Host: ${RAW_EP}\n\n"
-                
-                # 记录节点名用于策略组
                 CLASH_GROUPS="${CLASH_GROUPS}      - ${ALIAS}\n"
             done
             
-            # --- 原本的 base64 写入 ---
+            # 写入 base64 (旧兼容)
             echo -e "$TOTAL_LINKS" | base64 -w 0 > system-report.dat
             
-            # --- [新增] 写入 clash.yaml 文件 ---
-            # 这是一个完整的配置文件，可以直接导入使用
+            # 写入 clash.yaml
             cat <<EOF > clash.yaml
           port: 7890
           socks-port: 7891
@@ -152,7 +174,7 @@ jobs:
             - MATCH,🚀 节点选择
           EOF
             
-            # 强制推送 (增加了 clash.yaml)
+            # Git Push
             git config --global user.name "bot"
             git config --global user.email "bot@bot.com"
             git add system-report.dat clash.yaml
@@ -164,7 +186,6 @@ jobs:
 
       - name: Keep-Alive
         run: |
-          # 没有任何多余的检查逻辑，纯循环，省 CPU
           end=$((SECONDS+21600))
           while [ $SECONDS -lt $end ]; do
             sleep 120
