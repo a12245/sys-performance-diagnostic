@@ -5,7 +5,7 @@ mode: rule
 log-level: info
 external-controller: 127.0.0.1:9090
 proxies:
-  - name: ⚡Turbo-www.visa.com
+  - name: ⚡WARP-www.visa.com
     type: vless
     server: www.visa.com
     port: 443
@@ -13,15 +13,15 @@ proxies:
     udp: true
     tls: true
     network: ws
-    servername: implications-clothes-requested-sixth.trycloudflare.com
+    servername: asp-garage-situation-contain.trycloudflare.com
     skip-cert-verify: true
     client-fingerprint: chrome
     ws-opts:
       path: "/"
       headers:
-        Host: implications-clothes-requested-sixth.trycloudflare.com
+        Host: asp-garage-situation-contain.trycloudflare.com
 
-  - name: ⚡Turbo-www.visa.com.sg
+  - name: ⚡WARP-www.visa.com.sg
     type: vless
     server: www.visa.com.sg
     port: 443
@@ -29,15 +29,15 @@ proxies:
     udp: true
     tls: true
     network: ws
-    servername: implications-clothes-requested-sixth.trycloudflare.com
+    servername: asp-garage-situation-contain.trycloudflare.com
     skip-cert-verify: true
     client-fingerprint: chrome
     ws-opts:
       path: "/"
       headers:
-        Host: implications-clothes-requested-sixth.trycloudflare.com
+        Host: asp-garage-situation-contain.trycloudflare.com
 
-  - name: ⚡Turbo-www.wto.org
+  - name: ⚡WARP-www.wto.org
     type: vless
     server: www.wto.org
     port: 443
@@ -45,15 +45,15 @@ proxies:
     udp: true
     tls: true
     network: ws
-    servername: implications-clothes-requested-sixth.trycloudflare.com
+    servername: asp-garage-situation-contain.trycloudflare.com
     skip-cert-verify: true
     client-fingerprint: chrome
     ws-opts:
       path: "/"
       headers:
-        Host: implications-clothes-requested-sixth.trycloudflare.com
+        Host: asp-garage-situation-contain.trycloudflare.com
 
-  - name: ⚡Turbo-icook.tw
+  - name: ⚡WARP-icook.tw
     type: vless
     server: icook.tw
     port: 443
@@ -61,15 +61,15 @@ proxies:
     udp: true
     tls: true
     network: ws
-    servername: implications-clothes-requested-sixth.trycloudflare.com
+    servername: asp-garage-situation-contain.trycloudflare.com
     skip-cert-verify: true
     client-fingerprint: chrome
     ws-opts:
       path: "/"
       headers:
-        Host: implications-clothes-requested-sixth.trycloudflare.com
+        Host: asp-garage-situation-contain.trycloudflare.com
 
-  - name: ⚡Turbo-ip.sb
+  - name: ⚡WARP-ip.sb
     type: vless
     server: ip.sb
     port: 443
@@ -77,34 +77,34 @@ proxies:
     udp: true
     tls: true
     network: ws
-    servername: implications-clothes-requested-sixth.trycloudflare.com
+    servername: asp-garage-situation-contain.trycloudflare.com
     skip-cert-verify: true
     client-fingerprint: chrome
     ws-opts:
       path: "/"
       headers:
-        Host: implications-clothes-requested-sixth.trycloudflare.com
+        Host: asp-garage-situation-contain.trycloudflare.com
 proxy-groups:
   - name: 🚀 节点选择
     type: select
     proxies:
       - ♻️ 自动选择
-      - ⚡Turbo-www.visa.com
-      - ⚡Turbo-www.visa.com.sg
-      - ⚡Turbo-www.wto.org
-      - ⚡Turbo-icook.tw
-      - ⚡Turbo-ip.sb
+      - ⚡WARP-www.visa.com
+      - ⚡WARP-www.visa.com.sg
+      - ⚡WARP-www.wto.org
+      - ⚡WARP-icook.tw
+      - ⚡WARP-ip.sb
   - name: ♻️ 自动选择
     type: url-test
     url: http://www.gstatic.com/generate_204
     interval: 300
     tolerance: 50
     proxies:
-      - ⚡Turbo-www.visa.com
-      - ⚡Turbo-www.visa.com.sg
-      - ⚡Turbo-www.wto.org
-      - ⚡Turbo-icook.tw
-      - ⚡Turbo-ip.sb
+      - ⚡WARP-www.visa.com
+      - ⚡WARP-www.visa.com.sg
+      - ⚡WARP-www.wto.org
+      - ⚡WARP-icook.tw
+      - ⚡WARP-ip.sb
 rules:
   - GEOIP,CN,DIRECT
   - MATCH,🚀 节点选择
