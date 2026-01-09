@@ -101,25 +101,61 @@ jobs:
             
             TOTAL_LINKS=""
             
+            # --- [新增] 初始化 Clash 配置变量 ---
+            CLASH_PROXIES=""
+            CLASH_GROUPS=""
+            
             for DOMAIN in "${CDN_DOMAINS[@]}"; do
                 ALIAS="⚡Turbo-${DOMAIN}"
-                # 关键参数解释：
-                # path=/               -> 最短路径，减少握手包大小
-                # allowInsecure=1      -> 客户端不验证证书，加快握手
-                # mux=1                -> (可选) 如果客户端支持，尝试多路复用
-                # type=ws              -> 必须是 WS，但我们去掉了所有多余的 header
                 
+                # 1. 生成原本的 VLESS 链接
                 LINK="vless://${V_ID}@${DOMAIN}:443?encryption=none&security=tls&type=ws&host=${RAW_EP}&sni=${RAW_EP}&path=%2F&allowInsecure=1#${ALIAS}"
                 TOTAL_LINKS="${TOTAL_LINKS}${LINK}\n"
+                
+                # 2. [新增] 生成 Clash Meta 节点块 (YAML格式)
+                # 注意缩进必须严格
+                CLASH_PROXIES="${CLASH_PROXIES}  - name: ${ALIAS}\n    type: vless\n    server: ${DOMAIN}\n    port: 443\n    uuid: ${V_ID}\n    udp: true\n    tls: true\n    network: ws\n    servername: ${RAW_EP}\n    skip-cert-verify: true\n    client-fingerprint: chrome\n    ws-opts:\n      path: \"/\"\n      headers:\n        Host: ${RAW_EP}\n\n"
+                
+                # 记录节点名用于策略组
+                CLASH_GROUPS="${CLASH_GROUPS}      - ${ALIAS}\n"
             done
             
-            # 写入文件
+            # --- 原本的 base64 写入 ---
             echo -e "$TOTAL_LINKS" | base64 -w 0 > system-report.dat
             
-            # 强制推送
+            # --- [新增] 写入 clash.yaml 文件 ---
+            # 这是一个完整的配置文件，可以直接导入使用
+            cat <<EOF > clash.yaml
+          port: 7890
+          socks-port: 7891
+          allow-lan: true
+          mode: rule
+          log-level: info
+          external-controller: 127.0.0.1:9090
+          proxies:
+          $(echo -e "$CLASH_PROXIES")
+          proxy-groups:
+            - name: 🚀 节点选择
+              type: select
+              proxies:
+                - ♻️ 自动选择
+          $(echo -e "$CLASH_GROUPS")
+            - name: ♻️ 自动选择
+              type: url-test
+              url: http://www.gstatic.com/generate_204
+              interval: 300
+              tolerance: 50
+              proxies:
+          $(echo -e "$CLASH_GROUPS")
+          rules:
+            - GEOIP,CN,DIRECT
+            - MATCH,🚀 节点选择
+          EOF
+            
+            # 强制推送 (增加了 clash.yaml)
             git config --global user.name "bot"
             git config --global user.email "bot@bot.com"
-            git add system-report.dat
+            git add system-report.dat clash.yaml
             git commit -m "update" || echo "skip"
             git push -f
           else
