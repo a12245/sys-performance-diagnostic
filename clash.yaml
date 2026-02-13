@@ -13,13 +13,13 @@ proxies:
     udp: true
     tls: true
     network: ws
-    servername: avatar-parliament-horizontal-quoted.trycloudflare.com
+    servername: bird-demo-county-specially.trycloudflare.com
     skip-cert-verify: true
     client-fingerprint: chrome
     ws-opts:
       path: "/"
       headers:
-        Host: avatar-parliament-horizontal-quoted.trycloudflare.com
+        Host: bird-demo-county-specially.trycloudflare.com
 
   - name: ⚡WARP-www.visa.com.sg
     type: vless
@@ -29,13 +29,13 @@ proxies:
     udp: true
     tls: true
     network: ws
-    servername: avatar-parliament-horizontal-quoted.trycloudflare.com
+    servername: bird-demo-county-specially.trycloudflare.com
     skip-cert-verify: true
     client-fingerprint: chrome
     ws-opts:
       path: "/"
       headers:
-        Host: avatar-parliament-horizontal-quoted.trycloudflare.com
+        Host: bird-demo-county-specially.trycloudflare.com
 
   - name: ⚡WARP-www.wto.org
     type: vless
@@ -45,13 +45,13 @@ proxies:
     udp: true
     tls: true
     network: ws
-    servername: avatar-parliament-horizontal-quoted.trycloudflare.com
+    servername: bird-demo-county-specially.trycloudflare.com
     skip-cert-verify: true
     client-fingerprint: chrome
     ws-opts:
       path: "/"
       headers:
-        Host: avatar-parliament-horizontal-quoted.trycloudflare.com
+        Host: bird-demo-county-specially.trycloudflare.com
 
   - name: ⚡WARP-icook.tw
     type: vless
@@ -61,13 +61,13 @@ proxies:
     udp: true
     tls: true
     network: ws
-    servername: avatar-parliament-horizontal-quoted.trycloudflare.com
+    servername: bird-demo-county-specially.trycloudflare.com
     skip-cert-verify: true
     client-fingerprint: chrome
     ws-opts:
       path: "/"
       headers:
-        Host: avatar-parliament-horizontal-quoted.trycloudflare.com
+        Host: bird-demo-county-specially.trycloudflare.com
 
   - name: ⚡WARP-ip.sb
     type: vless
@@ -77,13 +77,13 @@ proxies:
     udp: true
     tls: true
     network: ws
-    servername: avatar-parliament-horizontal-quoted.trycloudflare.com
+    servername: bird-demo-county-specially.trycloudflare.com
     skip-cert-verify: true
     client-fingerprint: chrome
     ws-opts:
       path: "/"
       headers:
-        Host: avatar-parliament-horizontal-quoted.trycloudflare.com
+        Host: bird-demo-county-specially.trycloudflare.com
 proxy-groups:
   - name: 🚀 节点选择
     type: select
