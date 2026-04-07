@@ -1,0 +1,42 @@
+name: Dynamic CF IP Fetcher (BGP & Official)
+
+on:
+  schedule:
+    # 每 2 小时执行一次 (UTC 时间，对应北京时间奇数点)
+    - cron: '0 */2 * * *'
+  workflow_dispatch: # 允许手动触发
+
+jobs:
+  fetch-and-process:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Fetch Official Cloudflare IPv4
+        run: |
+          curl -s https://www.cloudflare.com/ips-v4 > official_ips.txt
+          echo "Downloaded official IPs."
+
+      - name: Fetch BGP AS13335 (Cloudflare) Prefixes
+        run: |
+          # 调用 BGPView API 获取 CF 的所有路由宣告
+          curl -s https://api.bgpview.io/asn/13335/prefixes | jq -r '.data.ipv4_prefixes[].prefix' > bgp_ips.txt
+          echo "Downloaded BGP AS13335 prefixes."
+
+      - name: Merge and Deduplicate
+        run: |
+          cat official_ips.txt bgp_ips.txt | sort -V | uniq > final_cf_ips.txt
+          # 这里你可以加入更极端的逻辑：比如过滤掉已经被墙的烂大街 C 段
+          echo "Merged IP list generated."
+
+      - name: Commit and Push to Repository
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          git config --global user.name "github-actions[bot]"
+          git config --global user.email "github-actions[bot]@users.noreply.github.com"
+          git add final_cf_ips.txt
+          # 如果文件没有变化，则跳过 commit 以免报错
+          git diff --quiet && git diff --staged --quiet || git commit -m "Auto-update CF IP rules: $(date -u +'%Y-%m-%dT%H:%M:%SZ')"
+          git push origin main
