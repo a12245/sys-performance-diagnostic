@@ -13,13 +13,13 @@ proxies:
     udp: true
     tls: true
     network: ws
-    servername: curious-switch-hosting-devoted.trycloudflare.com
+    servername: november-elect-studying-specifications.trycloudflare.com
     skip-cert-verify: true
     client-fingerprint: chrome
     ws-opts:
       path: "/"
       headers:
-        Host: curious-switch-hosting-devoted.trycloudflare.com
+        Host: november-elect-studying-specifications.trycloudflare.com
 
   - name: ⚡WARP-www.visa.com.sg
     type: vless
@@ -29,13 +29,13 @@ proxies:
     udp: true
     tls: true
     network: ws
-    servername: curious-switch-hosting-devoted.trycloudflare.com
+    servername: november-elect-studying-specifications.trycloudflare.com
     skip-cert-verify: true
     client-fingerprint: chrome
     ws-opts:
       path: "/"
       headers:
-        Host: curious-switch-hosting-devoted.trycloudflare.com
+        Host: november-elect-studying-specifications.trycloudflare.com
 
   - name: ⚡WARP-www.wto.org
     type: vless
@@ -45,13 +45,13 @@ proxies:
     udp: true
     tls: true
     network: ws
-    servername: curious-switch-hosting-devoted.trycloudflare.com
+    servername: november-elect-studying-specifications.trycloudflare.com
     skip-cert-verify: true
     client-fingerprint: chrome
     ws-opts:
       path: "/"
       headers:
-        Host: curious-switch-hosting-devoted.trycloudflare.com
+        Host: november-elect-studying-specifications.trycloudflare.com
 
   - name: ⚡WARP-icook.tw
     type: vless
@@ -61,13 +61,13 @@ proxies:
     udp: true
     tls: true
     network: ws
-    servername: curious-switch-hosting-devoted.trycloudflare.com
+    servername: november-elect-studying-specifications.trycloudflare.com
     skip-cert-verify: true
     client-fingerprint: chrome
     ws-opts:
       path: "/"
       headers:
-        Host: curious-switch-hosting-devoted.trycloudflare.com
+        Host: november-elect-studying-specifications.trycloudflare.com
 
   - name: ⚡WARP-ip.sb
     type: vless
@@ -77,13 +77,13 @@ proxies:
     udp: true
     tls: true
     network: ws
-    servername: curious-switch-hosting-devoted.trycloudflare.com
+    servername: november-elect-studying-specifications.trycloudflare.com
     skip-cert-verify: true
     client-fingerprint: chrome
     ws-opts:
       path: "/"
       headers:
-        Host: curious-switch-hosting-devoted.trycloudflare.com
+        Host: november-elect-studying-specifications.trycloudflare.com
 proxy-groups:
   - name: 🚀 节点选择
     type: select
