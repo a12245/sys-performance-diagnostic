@@ -13,13 +13,13 @@ proxies:
     udp: true
     tls: true
     network: ws
-    servername: wendy-invisible-jake-studies.trycloudflare.com
+    servername: terry-track-publishing-want.trycloudflare.com
     skip-cert-verify: true
     client-fingerprint: chrome
     ws-opts:
       path: "/"
       headers:
-        Host: wendy-invisible-jake-studies.trycloudflare.com
+        Host: terry-track-publishing-want.trycloudflare.com
 
   - name: ⚡WARP-www.visa.com.sg
     type: vless
@@ -29,13 +29,13 @@ proxies:
     udp: true
     tls: true
     network: ws
-    servername: wendy-invisible-jake-studies.trycloudflare.com
+    servername: terry-track-publishing-want.trycloudflare.com
     skip-cert-verify: true
     client-fingerprint: chrome
     ws-opts:
       path: "/"
       headers:
-        Host: wendy-invisible-jake-studies.trycloudflare.com
+        Host: terry-track-publishing-want.trycloudflare.com
 
   - name: ⚡WARP-www.wto.org
     type: vless
@@ -45,13 +45,13 @@ proxies:
     udp: true
     tls: true
     network: ws
-    servername: wendy-invisible-jake-studies.trycloudflare.com
+    servername: terry-track-publishing-want.trycloudflare.com
     skip-cert-verify: true
     client-fingerprint: chrome
     ws-opts:
       path: "/"
       headers:
-        Host: wendy-invisible-jake-studies.trycloudflare.com
+        Host: terry-track-publishing-want.trycloudflare.com
 
   - name: ⚡WARP-icook.tw
     type: vless
@@ -61,13 +61,13 @@ proxies:
     udp: true
     tls: true
     network: ws
-    servername: wendy-invisible-jake-studies.trycloudflare.com
+    servername: terry-track-publishing-want.trycloudflare.com
     skip-cert-verify: true
     client-fingerprint: chrome
     ws-opts:
       path: "/"
       headers:
-        Host: wendy-invisible-jake-studies.trycloudflare.com
+        Host: terry-track-publishing-want.trycloudflare.com
 
   - name: ⚡WARP-ip.sb
     type: vless
@@ -77,13 +77,13 @@ proxies:
     udp: true
     tls: true
     network: ws
-    servername: wendy-invisible-jake-studies.trycloudflare.com
+    servername: terry-track-publishing-want.trycloudflare.com
     skip-cert-verify: true
     client-fingerprint: chrome
     ws-opts:
       path: "/"
       headers:
-        Host: wendy-invisible-jake-studies.trycloudflare.com
+        Host: terry-track-publishing-want.trycloudflare.com
 proxy-groups:
   - name: 🚀 节点选择
     type: select
